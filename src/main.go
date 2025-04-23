@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -63,6 +64,35 @@ func validatePostRequest(b Book, w http.ResponseWriter) bool {
 
 }
 
+func paginationHandler(w http.ResponseWriter, r *http.Request, bookList []Book) []Book {
+	limitString := r.URL.Query().Get("limit")
+	offsetString := r.URL.Query().Get("offset")
+
+	limit, _ := strconv.Atoi(limitString)
+	offset, _ := strconv.Atoi(offsetString)
+
+	// Apply offest filter
+	if offsetString != "" {
+		if offset < len(bookList) && offset > 0 {
+			bookList = bookList[offset:]
+		} else {
+			http.Error(w, "The offset has to be less than the amount of books and/or a postive integer", http.StatusBadRequest)
+		}
+	}
+
+	// Apply limit filter
+	if limitString != "" {
+		if limit < len(bookList) && limit > 0 {
+			bookList = bookList[:limit]
+		} else {
+			http.Error(w, "The limit has to be less than the amount of books and/or a postive integer", http.StatusBadRequest)
+		}
+	}
+
+	return bookList
+
+}
+
 func handleBooksGetRequest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	filter := r.URL.Query().Get("status")
@@ -85,6 +115,9 @@ func handleBooksGetRequest(w http.ResponseWriter, r *http.Request) {
 	sort.Slice(bookList, func(i, j int) bool {
 		return bookList[i].Title < bookList[j].Title
 	})
+
+	// paginationHandler will return a filtered bookList
+	bookList = paginationHandler(w, r, bookList)
 	json.NewEncoder(w).Encode(bookList)
 }
 
